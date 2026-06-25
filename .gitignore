@@ -1,0 +1,10 @@
+# Downloaded match videos and any other large data (not version controlled)
+downloads/
+
+# Run logs and scrape artifacts
+*.log
+sa.html
+
+# Python
+__pycache__/
+*.py[cod]
