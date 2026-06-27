@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/event/15186858/incidents",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 55771,
+  "retrieved_at": "2026-06-26T23:45:12.805528+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "application/json",
+    "cache-control": "max-age=10, public, s-maxage=172800",
+    "x-application-id": "core",
+    "etag": "W/\"29868fa344\"",
+    "x-request-id": "e20d005a-8cdb-4049-840d-786f6535dba4",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:45:12 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "8758"
+  }
+}

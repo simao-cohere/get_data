@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/event/15186858/best-players/summary",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 7222,
+  "retrieved_at": "2026-06-26T23:45:14.669569+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "application/json",
+    "cache-control": "max-age=60, public, s-maxage=86400",
+    "x-application-id": "core",
+    "etag": "W/\"5d92de1ca4\"",
+    "x-request-id": "3c55255a-4829-42b0-a7ed-c5b37e01e74f",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:45:14 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "1679"
+  }
+}

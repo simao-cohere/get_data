@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/team/4723/events/next/0",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 18825,
+  "retrieved_at": "2026-06-26T23:47:06.545133+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "application/json",
+    "cache-control": "max-age=60, public, s-maxage=7200",
+    "x-application-id": "core",
+    "etag": "W/\"75ac891faa\"",
+    "x-request-id": "01401326-4fa9-4730-a6f8-e9eafd979c90",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:47:06 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "3488"
+  }
+}

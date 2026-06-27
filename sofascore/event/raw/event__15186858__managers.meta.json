@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/event/15186858/managers",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 1351,
+  "retrieved_at": "2026-06-26T23:45:13.739290+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "application/json",
+    "cache-control": "max-age=60, public, s-maxage=86400",
+    "x-application-id": "core",
+    "etag": "W/\"50616a225f\"",
+    "x-request-id": "79f29b42-1ef5-49a9-92d2-c4164112e940",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:45:13 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "430"
+  }
+}

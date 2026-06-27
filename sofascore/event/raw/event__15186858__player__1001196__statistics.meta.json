@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/event/15186858/player/1001196/statistics",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 1801,
+  "retrieved_at": "2026-06-26T23:46:42.854451+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "application/json",
+    "cache-control": "max-age=10, public, s-maxage=3600",
+    "x-application-id": "core",
+    "etag": "W/\"c3b7532379\"",
+    "x-request-id": "e862c150-a0c4-4c93-a402-9336c7f81f31",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:46:42 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "748"
+  }
+}

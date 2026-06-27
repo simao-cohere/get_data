@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/event/15186858/graph/win-probability",
+  "method": "GET",
+  "status": 404,
+  "content_type": "application/json",
+  "size": 44,
+  "retrieved_at": "2026-06-26T23:45:20.633192+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "application/json",
+    "cache-control": "max-age=10, public, s-maxage=7200",
+    "x-application-id": "core",
+    "etag": "W/\"80440c4b02\"",
+    "x-request-id": "faad2d86-ccb1-47b1-9c7e-32f7917c41e1",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:45:20 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "62"
+  }
+}

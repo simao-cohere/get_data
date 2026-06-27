@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/team/4704/performance",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 52896,
+  "retrieved_at": "2026-06-26T23:47:03.724277+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "application/json",
+    "cache-control": "max-age=10, public, s-maxage=86400",
+    "x-application-id": "core",
+    "etag": "W/\"e601d36db4\"",
+    "x-request-id": "8ae2b62f-b3dc-48fa-bdc2-3ce47655f8cc",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:47:03 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "6605"
+  }
+}

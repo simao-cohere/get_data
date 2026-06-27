@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/team/4723/unique-tournament/16/season/58210/statistics/overall",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 2852,
+  "retrieved_at": "2026-06-26T23:47:07.507596+00:00",
+  "headers": {
+    "server": "nginx",
+    "cache-control": "max-age=60, public, s-maxage=3600",
+    "x-application-id": "core",
+    "etag": "\"6a4b1bab11\"",
+    "x-request-id": "3025ba5b-971f-4be5-99dd-ccfcc41ce7d9",
+    "content-type": "application/json",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:47:07 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "1117"
+  }
+}

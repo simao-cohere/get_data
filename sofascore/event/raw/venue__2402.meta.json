@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/venue/2402",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 2010,
+  "retrieved_at": "2026-06-26T23:47:11.438662+00:00",
+  "headers": {
+    "server": "nginx",
+    "cache-control": "max-age=3600, public",
+    "x-application-id": "core",
+    "etag": "\"44d8a5c99f\"",
+    "x-request-id": "1b1814c0-f1a3-4d2b-8f1f-ee3dfb896be4",
+    "content-type": "application/json",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:47:11 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "828"
+  }
+}

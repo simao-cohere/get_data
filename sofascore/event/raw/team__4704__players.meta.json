@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/team/4704/players",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 522387,
+  "retrieved_at": "2026-06-26T23:47:02.306108+00:00",
+  "headers": {
+    "server": "nginx",
+    "cache-control": "max-age=60, public, s-maxage=3600",
+    "x-application-id": "core",
+    "etag": "\"e44d1fc5d1\"",
+    "x-request-id": "99d98079-e962-4db4-8ba7-3c12ecd46c24",
+    "content-type": "application/json",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:47:02 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "58037"
+  }
+}

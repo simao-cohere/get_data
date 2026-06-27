@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/event/15186858/player/318941/heatmap",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 1365,
+  "retrieved_at": "2026-06-26T23:45:37.240344+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "application/json",
+    "cache-control": "max-age=10, public, s-maxage=3600",
+    "x-application-id": "core",
+    "etag": "W/\"252aee74e3\"",
+    "x-request-id": "5519d410-5053-4e37-bebd-01a491bc284f",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:45:37 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "376"
+  }
+}

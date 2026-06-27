@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/event/15186858/lineups",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 94964,
+  "retrieved_at": "2026-06-26T23:45:12.328181+00:00",
+  "headers": {
+    "server": "nginx",
+    "cache-control": "max-age=10, public, s-maxage=3600",
+    "x-application-id": "core",
+    "etag": "\"a0eb30758e\"",
+    "x-request-id": "c7215dfc-389f-4bb9-93da-7e178906d127",
+    "content-type": "application/json",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:45:12 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "20621"
+  }
+}

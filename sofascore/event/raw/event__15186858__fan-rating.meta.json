@@ -1,0 +1,23 @@
+{
+  "url": "https://api.sofascore.com/api/v1/event/15186858/fan-rating",
+  "method": "GET",
+  "status": 404,
+  "content_type": "application/json",
+  "size": 44,
+  "retrieved_at": "2026-06-26T23:45:21.094104+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "application/json",
+    "x-application-id": "core",
+    "etag": "W/\"80440c4b02\"",
+    "x-request-id": "b55f52bf-6ee8-4790-ba9a-334931c45fc6",
+    "access-control-expose-headers": "x-token-refresh",
+    "content-encoding": "gzip",
+    "cache-control": "public, max-age=3600",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:45:21 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "62"
+  }
+}

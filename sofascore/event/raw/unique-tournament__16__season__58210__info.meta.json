@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/unique-tournament/16/season/58210/info",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 306,
+  "retrieved_at": "2026-06-26T23:47:13.304486+00:00",
+  "headers": {
+    "server": "nginx",
+    "cache-control": "max-age=3600, public",
+    "x-application-id": "core",
+    "etag": "\"9b0be5c9c3\"",
+    "x-request-id": "3858d972-df85-496d-a884-ef04ce1a6afc",
+    "content-type": "application/json",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:47:13 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "227"
+  }
+}

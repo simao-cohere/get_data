@@ -1,0 +1,19 @@
+{
+  "url": "https://api.sofascore.com/api/v1/unique-tournament/16/image",
+  "method": "GET",
+  "status": 200,
+  "content_type": "image/png",
+  "size": 11033,
+  "retrieved_at": "2026-06-26T23:47:12.841910+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "image/png",
+    "cache-control": "max-age=86400, public, s-maxage=604800",
+    "x-application-id": "core",
+    "etag": "\"e637ac4405\"",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:47:12 GMT",
+    "content-length": "11033"
+  }
+}

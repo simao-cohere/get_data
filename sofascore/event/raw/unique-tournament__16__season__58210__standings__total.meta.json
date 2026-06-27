@@ -1,0 +1,22 @@
+{
+  "url": "https://api.sofascore.com/api/v1/unique-tournament/16/season/58210/standings/total",
+  "method": "GET",
+  "status": 200,
+  "content_type": "application/json",
+  "size": 114389,
+  "retrieved_at": "2026-06-26T23:47:13.774637+00:00",
+  "headers": {
+    "server": "nginx",
+    "content-type": "application/json",
+    "cache-control": "max-age=60, public, s-maxage=7200",
+    "x-application-id": "core",
+    "etag": "W/\"bfacdd23e0\"",
+    "x-request-id": "c4103f5d-4bf5-49cc-966e-4a431ce503ce",
+    "content-encoding": "gzip",
+    "access-control-allow-origin": "*",
+    "accept-ranges": "bytes",
+    "date": "Fri, 26 Jun 2026 23:47:13 GMT",
+    "vary": "Accept-Encoding",
+    "content-length": "17422"
+  }
+}
