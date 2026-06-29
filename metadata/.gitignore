@@ -1,0 +1,7 @@
+# Crawled match metadata, media and raw sources (not version controlled)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/

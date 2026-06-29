@@ -1,5 +1,11 @@
-# Downloaded match videos and any other large data (not version controlled)
+# Large data / generated runtime state (not version controlled)
 downloads/
+videos/downloads/
+videos/logs/
+videos/reports/
+videos/progress/
+videos/progress.json
+metadata/data/
 
 # Run logs and scrape artifacts
 *.log

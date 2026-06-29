@@ -1,0 +1,72 @@
+mexico v south africa
+korea republic v czech republic
+canada v bosnia and herzegovina
+united states v paraguay
+haiti v scotland
+australia v turkey
+brazil v morocco
+qatar v switzerland
+ivory coast v ecuador
+germany v curaçao
+netherlands v japan
+sweden v tunisia
+saudi arabia v uruguay
+spain v cape verde
+iran v new zealand
+belgium v egypt
+france v senegal
+iraq v norway
+argentina v algeria
+austria v jordan
+ghana v panama
+england v croatia
+portugal v dr congo
+uzbekistan v colombia
+czech republic v south africa
+switzerland v bosnia and herzegovina
+canada v qatar
+mexico v korea republic
+brazil v haiti
+scotland v morocco
+united states v australia
+turkey v paraguay
+germany v ivory coast
+ecuador v curaçao
+netherlands v sweden
+tunisia v japan
+uruguay v cape verde
+spain v saudi arabia
+belgium v iran
+new zealand v egypt
+norway v senegal
+france v iraq
+argentina v austria
+jordan v algeria
+england v ghana
+panama v croatia
+portugal v uzbekistan
+colombia v dr congo
+scotland v brazil
+morocco v haiti
+switzerland v canada
+bosnia and herzegovina v qatar
+czech republic v mexico
+south africa v korea republic
+curaçao v ivory coast
+ecuador v germany
+japan v sweden
+tunisia v netherlands
+turkey v united states
+paraguay v australia
+norway v france
+senegal v iraq
+egypt v iran
+new zealand v belgium
+cape verde v saudi arabia
+uruguay v spain
+panama_v_england
+croatia_v_ghana
+colombia_v_portugal
+dr_congo_v_uzbekistan
+jordan_v_argentina
+algeria_v_austria
