@@ -284,8 +284,11 @@ def build_events(event, incidents, shots, highlights) -> list:
         # period / injuryTime markers are intentionally skipped
 
     _attach_highlights(events, highlights, home_code, away_code)
+    # Sort by period first so late first-half stoppage events never sort after
+    # early second-half ones (SofaScore timeSeconds can overlap at the break).
     events.sort(key=lambda e: (
-        e.get("match_seconds") if e.get("match_seconds") is not None else 1e9
+        e.get("period") or 1,
+        e.get("match_seconds") if e.get("match_seconds") is not None else 1e9,
     ))
     return events
 
