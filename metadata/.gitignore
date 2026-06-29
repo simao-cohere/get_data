@@ -1,6 +1,11 @@
 # Crawled match metadata, media and raw sources (not version controlled)
 data/
 
+# Batch-run runtime state (match_ids.txt is tracked; these are generated)
+progress.json
+logs/
+reports/
+
 # Python
 __pycache__/
 *.py[cod]

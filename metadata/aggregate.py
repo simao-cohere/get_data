@@ -35,6 +35,21 @@ BOX_X_MAX = 17.0
 BOX_Y_MIN, BOX_Y_MAX = 21.0, 79.0
 MOMENTUM_THRESHOLD = 25  # |attack momentum| above this counts as "dominance"
 
+# Source files whose information is fully represented in metadata.json and can
+# therefore be pruned. The remaining sources (comments.json, best_players.json,
+# lineups.json, shots.json, statistics.json, players/) hold detail NOT in
+# metadata.json and are kept as the detail store.
+# NOTE: pruning is terminal for offline re-aggregation — aggregate.py needs
+# these inputs, so rebuilding metadata.json afterwards requires a re-crawl.
+REDUNDANT_SOURCES = (
+    "event.json",            # -> match
+    "incidents.json",        # -> events (goals/cards/subs/var)
+    "graph.json",            # exact duplicate of momentum.json
+    "momentum.json",         # -> windows + raw points inlined as metadata.momentum
+    "highlights.json",       # -> events[].clip_url + feature_videos
+    "standings_total.json",  # -> group_standings (match's group)
+)
+
 SHOT_TYPE_MAP = {
     "goal": "goal",
     "save": "shot_saved",
@@ -49,6 +64,22 @@ SHOT_LABEL = {
     "shot_woodwork": "hit the woodwork",
     "shot": "shot",
 }
+
+
+def prune_sources(match_dir: str) -> list:
+    """Delete source files whose content is represented in metadata.json.
+
+    Keeps the detail-bearing sources (comments, best_players, per-player stats,
+    lineups, shots, statistics). Returns the list of removed file names.
+    """
+    src = os.path.join(match_dir, "sources")
+    removed = []
+    for name in REDUNDANT_SOURCES:
+        path = os.path.join(src, name)
+        if os.path.exists(path):
+            os.remove(path)
+            removed.append(name)
+    return removed
 
 
 def _load(src_dir: str, name: str):
@@ -477,7 +508,7 @@ def build_group_standings(standings_json, group_name):
 
 
 # ----------------------------------------------------------------- assemble
-def aggregate(match_dir: str) -> str:
+def aggregate(match_dir: str, prune: bool = False) -> str:
     src = os.path.join(match_dir, "sources")
     event = _load(src, "event.json")
     if not event or "event" not in event:
@@ -502,6 +533,20 @@ def aggregate(match_dir: str) -> str:
     windows = build_windows(momentum)
     team_stats = build_team_stats(statistics)
     group_standings = build_group_standings(match.get("stage") and standings, match.get("stage"))
+
+    # Feature videos (full-match highlight reel, press conferences) are the
+    # non-clip highlight entries (mediaType != 1); the per-minute clips are
+    # already attached to events.
+    feature_videos = [
+        {
+            "title": h.get("title"),
+            "subtitle": h.get("subtitle"),
+            "url": h.get("directStreamUrl") or h.get("url"),
+            "media_type": h.get("mediaType"),
+        }
+        for h in highlights
+        if h.get("mediaType") != 1 and (h.get("directStreamUrl") or h.get("url"))
+    ]
 
     # which players actually have a media headshot on disk
     media_dir = os.path.join(match_dir, "media")
@@ -541,8 +586,10 @@ def aggregate(match_dir: str) -> str:
         },
         "players": players,
         "media": media_index,
+        "feature_videos": feature_videos,
         "events": events,
         "windows": windows,
+        "momentum": momentum,
         "team_stats": team_stats,
         "group_standings": group_standings,
     }
@@ -551,8 +598,21 @@ def aggregate(match_dir: str) -> str:
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, ensure_ascii=False, indent=2)
     print(f"wrote {out_path}: {metadata['counts']}")
+
+    if prune:
+        removed = prune_sources(match_dir)
+        print(f"pruned {len(removed)} redundant source file(s): {', '.join(removed)}")
     return out_path
 
 
 if __name__ == "__main__":
-    aggregate(os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else "."))
+    import argparse
+
+    ap = argparse.ArgumentParser(description="Aggregate match sources into metadata.json")
+    ap.add_argument("match_dir", nargs="?", default=".",
+                    help="Match directory containing sources/ (e.g. data/portugal_v_uzbekistan)")
+    ap.add_argument("--prune-sources", action="store_true",
+                    help="Delete source files already represented in metadata.json "
+                         "(keeps comments, best_players, lineups, shots, statistics, players/)")
+    args = ap.parse_args()
+    aggregate(os.path.abspath(args.match_dir), prune=args.prune_sources)

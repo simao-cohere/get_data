@@ -87,10 +87,12 @@ def strip_field_translations(obj):
 
 
 class Crawler:
-    def __init__(self, event_id: int, out_base: str = ".", delay: float = 0.4):
+    def __init__(self, event_id: int, out_base: str = ".", delay: float = 0.4,
+                 prune_sources: bool = False):
         self.event_id = event_id
         self.out_base = os.path.abspath(out_base)
         self.delay = delay
+        self.prune_sources = prune_sources
         self.session = requests.Session(impersonate=IMPERSONATE)
         self.session.headers.update(BASE_HEADERS)
         self.visited: set[str] = set()
@@ -310,7 +312,7 @@ class Crawler:
 
         # --- aggregate into metadata.json --------------------------------
         from aggregate import aggregate
-        aggregate(self.out)
+        aggregate(self.out, prune=self.prune_sources)
         print(f"\nDONE -> {self.out}")
 
     def _write_summary(self, slug: str) -> None:
@@ -350,8 +352,12 @@ def main() -> None:
                     help="Base dir (git-ignored); a <home_v_away>/ subdir is "
                          "created in it.")
     ap.add_argument("--delay", type=float, default=0.4)
+    ap.add_argument("--prune-sources", action="store_true",
+                    help="After aggregating, delete source files already "
+                         "represented in metadata.json (keeps comments, "
+                         "best_players, lineups, shots, statistics, players/).")
     args = ap.parse_args()
-    Crawler(args.event_id, args.out, args.delay).run()
+    Crawler(args.event_id, args.out, args.delay, args.prune_sources).run()
 
 
 if __name__ == "__main__":
