@@ -24,15 +24,27 @@ career profiles, average-positions, h2h, pregame-form, team-streaks, odds,
 predictions/votes, team recent/upcoming/performance/season stats, referee /
 venue / tournament profile JSON (all already embedded in the event object).
 
-Output layout (per match). The base dir defaults to ``data/`` which is
-git-ignored, so crawled matches accumulate there without bloating the repo:
+Output layout. The base dir defaults to ``data/`` (git-ignored):
 
     data/<home_v_away>/
-        sources/      raw useful JSON (so metadata.json can be rebuilt offline)
-        media/        player_<id>.png, team_<id>.png, manager_<id>.png, ...
-        manifest.jsonl
-        summary.json
-        metadata.json (written by aggregate.py)
+        match.json         aggregated, agent-ready (written by aggregate.py)
+        event.json         raw SofaScore event core (pruned after aggregation)
+        lineups.json       full lineup + per-player stats + kit colours
+        shots.json         granular shotmap with coordinates and xG
+        comments.json      minute-by-minute commentary feed
+        statistics.json    team aggregates (all / 1st / 2nd half)
+        best_players.json  match ratings summary
+        ...                other raw endpoints (pruned after aggregation)
+    images/            shared across all matches — lives next to data/
+        unique_tournament.png
+        portugal/
+            team_<id>.png
+            manager_<id>.png
+            player_<id>.png  ← Ronaldo stored once, not once per match
+        uzbekistan/
+            ...
+
+Images are skipped on re-crawl if they already exist on disk.
 
 Usage:
     python crawl.py [--event-id 15186858] [--out data] [--delay 0.4]
@@ -98,25 +110,25 @@ class Crawler:
         self.visited: set[str] = set()
         # set once the slug is known (after the event core is fetched)
         self.out: str | None = None
-        self.sources_dir: str | None = None
         self.media_dir: str | None = None
-        self.manifest_path: str | None = None
         # discovered ids (filled as we crawl)
         self.player_ids: set[int] = set()
         self.team_ids: set[int] = set()
         self.manager_ids: set[int] = set()
         self.unique_tournament_id: int | None = None
         self.season_id: int | None = None
+        # id → country_slug mappings (built from event core + lineups)
+        self.player_country: dict[int, str] = {}
+        self.team_country: dict[int, str] = {}
+        self.manager_country: dict[int, str] = {}
 
     def _setup(self, slug: str) -> None:
         self.out = os.path.join(self.out_base, slug)
-        self.sources_dir = os.path.join(self.out, "sources")
-        self.media_dir = os.path.join(self.out, "media")
-        for d in (self.out, self.sources_dir,
-                  os.path.join(self.sources_dir, "players"), self.media_dir):
+        # Shared images dir sits next to data/, not inside the match dir.
+        # e.g.  metadata/images/  rather than  metadata/data/<match>/images/
+        self.media_dir = os.path.join(os.path.dirname(self.out_base), "images")
+        for d in (self.out, self.media_dir):
             os.makedirs(d, exist_ok=True)
-        self.manifest_path = os.path.join(self.out, "manifest.jsonl")
-        open(self.manifest_path, "w").close()  # fresh manifest each run
 
     # ----------------------------------------------------------------- fetch
     def fetch(self, url: str, binary: bool = False, retries: int = 4):
@@ -159,14 +171,8 @@ class Crawler:
         }
         return meta, None
 
-    def _record(self, meta: dict) -> None:
-        if self.manifest_path:
-            with open(self.manifest_path, "a") as f:
-                f.write(json.dumps(meta) + "\n")
-
     def _write_source(self, name: str, obj) -> None:
-        path = os.path.join(self.sources_dir, name)
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        path = os.path.join(self.out, name)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(obj, f, ensure_ascii=False, separators=(",", ":"))
 
@@ -175,7 +181,6 @@ class Crawler:
         meta, content = self.fetch(url)
         if meta is None:
             return None
-        self._record(meta)
         if meta["status"] != 200 or content is None:
             print(f"  [{meta['status']}] {url}")
             return None
@@ -189,13 +194,18 @@ class Crawler:
         print(f"  [200] {meta['size']:>8d}  {url}")
         return obj
 
-    def get_media(self, url: str, filename: str) -> None:
+    def get_media(self, url: str, filename: str,
+                  subdir: str | None = None) -> None:
+        dest_dir = os.path.join(self.media_dir, subdir) if subdir else self.media_dir
+        dest = os.path.join(dest_dir, filename)
+        if os.path.exists(dest):
+            return  # already on disk from a previous crawl run
         meta, content = self.fetch(url, binary=True)
         if meta is None:
             return
-        self._record(meta)
         if meta["status"] == 200 and content:
-            with open(os.path.join(self.media_dir, filename), "wb") as f:
+            os.makedirs(dest_dir, exist_ok=True)
+            with open(dest, "wb") as f:
                 f.write(content)
             print(f"  [img] {meta['size']:>8d}  {url}")
         else:
@@ -232,23 +242,26 @@ class Crawler:
         ev = event.get("event", {}) or {}
         home = ev.get("homeTeam", {}) or {}
         away = ev.get("awayTeam", {}) or {}
-        slug = f"{home.get('slug', 'home')}_v_{away.get('slug', 'away')}".replace("-", "_")
+        home_slug = home.get("slug", "home").replace("-", "_")
+        away_slug = away.get("slug", "away").replace("-", "_")
+        slug = f"{home_slug}_v_{away_slug}"
         self._setup(slug)
-        self._record(meta)
         self._write_source("event.json", event)
         print(f"== {slug} (event {eid}) ==")
 
-        # context ids
+        # context ids + country mappings for team/manager (known from event core)
         tour = ev.get("tournament", {}) or {}
         self.unique_tournament_id = (tour.get("uniqueTournament", {}) or {}).get("id")
         self.season_id = (ev.get("season", {}) or {}).get("id")
-        for side in ("homeTeam", "awayTeam"):
-            t = ev.get(side, {}) or {}
+        for side_key, country in (("homeTeam", home_slug), ("awayTeam", away_slug)):
+            t = ev.get(side_key, {}) or {}
             if t.get("id"):
                 self.team_ids.add(t["id"])
+                self.team_country[t["id"]] = country
             m = t.get("manager") or {}
             if m.get("id"):
                 self.manager_ids.add(m["id"])
+                self.manager_country[m["id"]] = country
 
         # --- event sub-endpoints (the useful ones only) ------------------
         endpoints = {
@@ -276,25 +289,36 @@ class Crawler:
             if isinstance(r, dict):
                 self._collect_player_ids(r, self.player_ids)
 
-        has_player_stats = ev.get("hasEventPlayerStatistics", True)
+        # Build player → country mapping from lineups (home/away sides)
+        lineups = results.get("lineups")
+        if isinstance(lineups, dict):
+            for side_key, country in (("home", home_slug), ("away", away_slug)):
+                side = lineups.get(side_key, {}) or {}
+                for entry in (side.get("players") or []) + (side.get("missingPlayers") or []):
+                    pid = (entry.get("player") or {}).get("id")
+                    if pid:
+                        self.player_country[pid] = country
+
         print(f"== {len(self.player_ids)} players, {len(self.team_ids)} teams, "
               f"{len(self.manager_ids)} managers ==")
 
-        # --- per-player event statistics + headshot ----------------------
+        # --- player headshots ------------------------------------------------
         for pid in sorted(self.player_ids):
-            if has_player_stats:
-                self.get_json(
-                    f"{API}/event/{eid}/player/{pid}/statistics",
-                    f"players/{pid}_event_statistics.json",
-                )
-            self.get_media(f"{API}/player/{pid}/image", f"player_{pid}.png")
+            country = self.player_country.get(pid)
+            self.get_media(f"{API}/player/{pid}/image", f"player_{pid}.png",
+                           subdir=country)
 
-        # --- team crests + manager photos + tournament logo --------------
+        # --- team crests + manager photos + tournament logo ------------------
         for tid in sorted(self.team_ids):
-            self.get_media(f"{API}/team/{tid}/image", f"team_{tid}.png")
+            country = self.team_country.get(tid)
+            self.get_media(f"{API}/team/{tid}/image", f"team_{tid}.png",
+                           subdir=country)
         for mid in sorted(self.manager_ids):
-            self.get_media(f"{API}/manager/{mid}/image", f"manager_{mid}.png")
+            country = self.manager_country.get(mid)
+            self.get_media(f"{API}/manager/{mid}/image", f"manager_{mid}.png",
+                           subdir=country)
         if self.unique_tournament_id:
+            # Tournament logo is shared — lives directly in media/, no subdir
             self.get_media(
                 f"{API}/unique-tournament/{self.unique_tournament_id}/image",
                 "unique_tournament.png",
@@ -308,41 +332,10 @@ class Crawler:
                 "standings_total.json",
             )
 
-        self._write_summary(slug)
-
         # --- aggregate into metadata.json --------------------------------
         from aggregate import aggregate
         aggregate(self.out, prune=self.prune_sources)
         print(f"\nDONE -> {self.out}")
-
-    def _write_summary(self, slug: str) -> None:
-        statuses: dict[str, int] = {}
-        total = 0
-        if self.manifest_path and os.path.exists(self.manifest_path):
-            with open(self.manifest_path) as f:
-                for line in f:
-                    total += 1
-                    try:
-                        s = str(json.loads(line)["status"])
-                    except Exception:
-                        s = "?"
-                    statuses[s] = statuses.get(s, 0) + 1
-        summary = {
-            "event_id": self.event_id,
-            "slug": slug,
-            "generated_at": now_iso(),
-            "requests_total": total,
-            "status_counts": statuses,
-            "discovered": {
-                "players": sorted(self.player_ids),
-                "teams": sorted(self.team_ids),
-                "managers": sorted(self.manager_ids),
-                "unique_tournament_id": self.unique_tournament_id,
-                "season_id": self.season_id,
-            },
-        }
-        with open(os.path.join(self.out, "summary.json"), "w") as f:
-            json.dump(summary, f, indent=2)
 
 
 def main() -> None:
@@ -354,8 +347,8 @@ def main() -> None:
     ap.add_argument("--delay", type=float, default=0.4)
     ap.add_argument("--prune-sources", action="store_true",
                     help="After aggregating, delete source files already "
-                         "represented in metadata.json (keeps comments, "
-                         "best_players, lineups, shots, statistics, players/).")
+                         "represented in match.json (keeps comments, "
+                         "best_players, lineups, shots, statistics).")
     args = ap.parse_args()
     Crawler(args.event_id, args.out, args.delay, args.prune_sources).run()
 
