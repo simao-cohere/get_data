@@ -64,6 +64,13 @@ API = "https://api.sofascore.com/api/v1"
 WEB = "https://www.sofascore.com"
 IMPERSONATE = "chrome120"
 
+# Normalise SofaScore team slugs to the shared vocabulary used by both crawlers.
+# Applied after replacing hyphens with underscores in the raw API slug.
+SLUG_NORMALISE = {
+    "cote_d_ivoire": "ivory_coast",
+    "cote_divoire":  "ivory_coast",   # alternate SofaScore spelling
+}
+
 # The header that actually unlocks the Varnish edge, plus polite browser-like
 # context headers.
 BASE_HEADERS = {
@@ -242,8 +249,14 @@ class Crawler:
         ev = event.get("event", {}) or {}
         home = ev.get("homeTeam", {}) or {}
         away = ev.get("awayTeam", {}) or {}
-        home_slug = home.get("slug", "home").replace("-", "_")
-        away_slug = away.get("slug", "away").replace("-", "_")
+        home_slug = SLUG_NORMALISE.get(
+            home.get("slug", "home").replace("-", "_"),
+            home.get("slug", "home").replace("-", "_"),
+        )
+        away_slug = SLUG_NORMALISE.get(
+            away.get("slug", "away").replace("-", "_"),
+            away.get("slug", "away").replace("-", "_"),
+        )
         slug = f"{home_slug}_v_{away_slug}"
         self._setup(slug)
         self._write_source("event.json", event)

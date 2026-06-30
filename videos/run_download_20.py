@@ -163,7 +163,14 @@ def resolve_match_url(name: str, ordered, by_set):
 
 
 def slugify_match(name: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", strip_accents(name).lower()).strip("_")
+    """Convert a fixture name to a filesystem slug, applying team aliases."""
+    parts = re.split(r"\s+v\s+", strip_accents(name).lower(), maxsplit=1)
+    if len(parts) == 2:
+        parts = [TEAM_ALIAS.get(p.strip(), p.strip()) for p in parts]
+        normalised = " v ".join(parts)
+    else:
+        normalised = strip_accents(name).lower()
+    return re.sub(r"[^a-z0-9]+", "_", normalised).strip("_")
 
 
 def variant_stem(label: str) -> str:
