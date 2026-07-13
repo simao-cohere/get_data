@@ -39,6 +39,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 
 import footballorgin_crawler as fc
+import soccerfull_crawler as sf
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 DOWNLOADS = os.environ.get(
@@ -49,7 +50,7 @@ LOGDIR = os.path.join(ROOT, "logs")
 REPORTDIR = os.path.join(ROOT, "reports")
 PROGRESSDIR = os.path.join(ROOT, "progress")
 PROGRESS_JSON = os.path.join(ROOT, "progress.json")
-MATCHES_TXT = os.path.join(ROOT, "world_cup_matches.txt")
+MATCHES_TXT = os.environ.get("MATCHES_TXT", os.path.join(ROOT, "world_cup_matches.txt"))
 LOGFILE = os.path.join(LOGDIR, "run.log")
 
 TARGET_SUCCESSES = int(os.environ.get("TARGET_SUCCESSES", "20"))
@@ -69,6 +70,13 @@ TEAM_ALIAS = {
     "korea republic": "south korea",
     "united states": "usa",
     "curacao": "curacao",
+}
+
+# Fallback for matches whose post exists on the site but isn't reachable via
+# the paginated category listing (e.g. not yet indexed there). Checked before
+# the scraped URL index.
+MANUAL_URLS = {
+    "norway v england": "https://www.footballorgin.com/norway-v-england-full-match-11-july-2026/",
 }
 
 START_TS = time.time()
@@ -268,40 +276,58 @@ def human(n: int) -> str:
         f /= 1024
 
 
-def process_match(name: str, url: str):
-    """Download + compress every variant.
+def classify_variant(label: str) -> str:
+    """Bucket a variant label into a canonical kind."""
+    l = label.lower()
+    if "extra" in l or "penalt" in l:
+        return "extra_time"
+    if "1st" in l or "first" in l:
+        return "first_half"
+    if "2nd" in l or "second" in l:
+        return "second_half"
+    if "highl" in l:  # matches "Highlights" and the site's "Highllights" typo
+        return "highlights"
+    if "full" in l:
+        return "full_match"
+    return "other"
 
-    Returns (status, detail) where status is 'success'|'failed'|'skipped'.
-    Does not touch shared state -- the caller records the result.
+
+def choose_variants(variants):
+    """Pick which variants to actually download.
+
+    Policy (per user preference): separate halves beat the full match. When
+    both a 1st and a 2nd half are available, the 'Full match' variant is
+    dropped -- the halves (plus any extra time and highlights) cover the whole
+    game and are what we want. The full match is kept only when there is no
+    pair of halves. Variants that collapse to the same kind (e.g. duplicate
+    'Full Match' entries, or 'Highlights'/'Highllights') are de-duplicated.
     """
-    slug = slugify_match(name)
-    outdir = os.path.join(DOWNLOADS, slug)
-    compdir = os.path.join(outdir, "compressed")
-    os.makedirs(compdir, exist_ok=True)
+    kinds = {classify_variant(v.label) for v in variants}
+    has_halves = "first_half" in kinds and "second_half" in kinds
+    chosen = []
+    seen = set()
+    for v in variants:
+        k = classify_variant(v.label)
+        if has_halves and k == "full_match":
+            continue
+        key = f"other:{variant_stem(v.label)}" if k == "other" else k
+        if key in seen:
+            continue
+        seen.add(key)
+        chosen.append(v)
+    return chosen
 
-    log(f"  {slug}: resolving variants for {url}")
-    try:
-        post_html = fc.http_get(url)
-        variants = fc.parse_variants(post_html)
-    except Exception as exc:  # noqa: BLE001
-        log(f"  ERROR fetching post page: {exc}")
-        variants = []
 
-    if not variants:
-        log(f"  {name}: no variants found -> skipped")
-        return "skipped", {"match": name, "url": url, "status": "skipped", "errors": ["no variants"]}
+def _fetch_variants(slug, outdir, compdir, variants, resolver, detail):
+    """Download + compress ``variants`` using ``resolver``.
 
-    detail = {
-        "match": name,
-        "url": url,
-        "variants": {},
-        "originals": [],
-        "compressed": [],
-        "errors": [],
-        "status": "failed",
-    }
-
-    any_ok = False
+    ``resolver(variant)`` returns ``(m3u8_url, referer)`` or raises. Files are
+    keyed by variant stem, so a variant already downloaded by a previous source
+    (e.g. footballorgin before falling back to soccerfull) is detected via
+    ``probe_ok`` and not fetched again. Returns the set of variant kinds that
+    are available (downloaded + compressed OK).
+    """
+    got = set()
     for v in variants:
         stem = variant_stem(v.label)
         orig = os.path.join(outdir, f"{stem}.mp4")
@@ -313,18 +339,18 @@ def process_match(name: str, url: str):
             for attempt in range(1, VARIANT_RETRIES + 1):
                 try:
                     log(f"  {slug} [{v.index}] {v.label}: downloading original (try {attempt})")
-                    _, res = fc.resolve(url, None, v.index)
-                    fc.download_hls(res.m3u8_url, orig, referer=res.player_url, height=None)
+                    m3u8_url, referer = resolver(v)
+                    fc.download_hls(m3u8_url, orig, referer=referer, height=None)
                     ok, dur, vbit = probe_ok(orig)
                     if ok:
                         break
                     log(f"  {slug} [{v.index}] {v.label}: probe failed after download")
                 except Exception as exc:  # noqa: BLE001
                     msg = str(exc)
-                    # Some variants (typically "Full match") are not embedded
-                    # server-side; that's permanent -> don't waste retries.
-                    if "iframe" in msg.lower() or "player page" in msg.lower():
-                        log(f"  {slug} [{v.index}] {v.label}: not embedded ({msg}) -> skip variant")
+                    # A missing iframe / player / m3u8 is permanent for this
+                    # source -> don't waste retries (the other source may work).
+                    if any(s in msg.lower() for s in ("iframe", "player page", ".m3u8")):
+                        log(f"  {slug} [{v.index}] {v.label}: unresolvable ({msg}) -> skip variant")
                         break
                     log(f"  {slug} [{v.index}] {v.label}: download error: {msg}")
                     time.sleep(min(2 ** attempt, 15))
@@ -332,7 +358,9 @@ def process_match(name: str, url: str):
             detail["errors"].append(f"{v.label}: original unavailable/failed")
             continue
         log(f"  {slug} [{v.index}] {v.label}: original OK {human(os.path.getsize(orig))} {dur:.0f}s {human(vbit)}/s")
-        detail["originals"].append(os.path.relpath(orig, ROOT))
+        rel_orig = os.path.relpath(orig, ROOT)
+        if rel_orig not in detail["originals"]:
+            detail["originals"].append(rel_orig)
 
         # --- compress (with retries) ---
         cok, cdur, _ = probe_ok(comp)
@@ -360,9 +388,81 @@ def process_match(name: str, url: str):
             "original": os.path.relpath(orig, ROOT),
             "compressed": os.path.relpath(comp, ROOT),
         }
-        any_ok = True
+        got.add(classify_variant(v.label))
+    return got
 
-    detail["status"] = "success" if any_ok else "failed"
+
+def process_match(name: str, fo_url: str | None, sf_url: str | None = None):
+    """Download + compress a match, preferring footballorgin then soccerfull.
+
+    footballorgin.com is tried first; soccerfull.net (the origin host that
+    footballorgin embeds) is used as a fallback whenever we don't already have
+    both halves -- which recovers the matches whose footballorgin player iframe
+    is JS-injected (and therefore invisible to the scraper). Variant selection
+    prefers separate halves over the full match (see ``choose_variants``).
+
+    Returns (status, detail) where status is 'success'|'failed'|'skipped'.
+    Does not touch shared state -- the caller records the result.
+    """
+    slug = slugify_match(name)
+    outdir = os.path.join(DOWNLOADS, slug)
+    compdir = os.path.join(outdir, "compressed")
+    os.makedirs(compdir, exist_ok=True)
+
+    detail = {
+        "match": name,
+        "url": fo_url,
+        "soccerfull_url": sf_url,
+        "variants": {},
+        "originals": [],
+        "compressed": [],
+        "errors": [],
+        "status": "failed",
+    }
+
+    got: set[str] = set()
+
+    # --- primary source: footballorgin.com ---
+    if fo_url:
+        log(f"  {slug}: resolving footballorgin variants for {fo_url}")
+        try:
+            post_html = fc.http_get(fo_url)
+            fo_variants = fc.parse_variants(post_html)
+        except Exception as exc:  # noqa: BLE001
+            log(f"  {slug}: ERROR fetching footballorgin post page: {exc}")
+            fo_variants = []
+        if fo_variants:
+            def fo_resolver(v):
+                _, res = fc.resolve(fo_url, None, v.index)
+                return res.m3u8_url, (res.referer or res.player_url)
+
+            got |= _fetch_variants(
+                slug, outdir, compdir, choose_variants(fo_variants), fo_resolver, detail
+            )
+        else:
+            log(f"  {slug}: no footballorgin variants found")
+
+    # --- fallback / complement: soccerfull.net (the origin host) ---
+    have_halves = "first_half" in got and "second_half" in got
+    if sf_url and not have_halves:
+        log(f"  {slug}: soccerfull fallback {sf_url}")
+        try:
+            sf_variants = sf.resolve(sf_url)
+        except Exception as exc:  # noqa: BLE001
+            log(f"  {slug}: soccerfull fetch error: {exc}")
+            sf_variants = []
+        if sf_variants:
+            got |= _fetch_variants(
+                slug, outdir, compdir, choose_variants(sf_variants), sf.resolve_variant, detail
+            )
+
+    if got:
+        detail["status"] = "success"
+    elif not (fo_url or sf_url):
+        detail["status"] = "skipped"
+        detail.setdefault("errors", []).append("no post URL on either site")
+    else:
+        detail["status"] = "failed"
     return detail["status"], detail
 
 
@@ -380,14 +480,24 @@ def main() -> int:
 
     ordered, by_set = build_url_index()
 
+    # soccerfull.net is the origin host footballorgin embeds; use it as a
+    # fallback for matches footballorgin can't resolve. Failure to build the
+    # index just disables the fallback -- the run still proceeds.
+    try:
+        sf_ordered, sf_by_set = sf.build_url_index(log_fn=log)
+    except Exception as exc:  # noqa: BLE001
+        log(f"soccerfull index unavailable ({exc}); fallback disabled")
+        sf_ordered, sf_by_set = {}, {}
+
     # Build the ordered candidate queue (available, not-yet-completed matches).
     candidates = []
     for name in matches:
         if name in completed:
             continue
-        url = resolve_match_url(name, ordered, by_set)
-        if not url:
-            log(f"UNAVAILABLE (no post URL): {name} -> skipped")
+        fo_url = MANUAL_URLS.get(name) or resolve_match_url(name, ordered, by_set)
+        sf_url = sf.find_match_url(name, sf_ordered, sf_by_set) if sf_ordered else None
+        if not fo_url and not sf_url:
+            log(f"UNAVAILABLE (no post URL on either site): {name} -> skipped")
             with _progress_lock:
                 for lst in ("completed", "failed", "skipped"):
                     if name in progress[lst]:
@@ -395,7 +505,7 @@ def main() -> int:
                 progress["skipped"].append(name)
                 save_progress(progress)
             continue
-        candidates.append((name, url))
+        candidates.append((name, fo_url, sf_url))
 
     log(f"{len(candidates)} candidate matches; need {TARGET_SUCCESSES} successes; {MAX_WORKERS} workers")
 
@@ -428,10 +538,10 @@ def main() -> int:
                 and len(inflight) < MAX_WORKERS
                 and (new_success + len(inflight)) < TARGET_SUCCESSES
             ):
-                name, url = candidates[ci]
+                name, fo_url, sf_url = candidates[ci]
                 ci += 1
                 log(f"--- START: {name}")
-                inflight[ex.submit(process_match, name, url)] = name
+                inflight[ex.submit(process_match, name, fo_url, sf_url)] = name
             if not inflight:
                 break
             done, _ = wait(list(inflight), return_when=FIRST_COMPLETED)
@@ -493,7 +603,7 @@ def write_report(progress: dict, new_success: int) -> None:
             lines.append(f"- {name}")
             continue
         lines.append(f"### {name}")
-        lines.append(f"- source: {d.get('url','?')}")
+        lines.append(f"- source: {d.get('url') or d.get('soccerfull_url') or '?'}")
         for label, paths in d.get("variants", {}).items():
             lines.append(
                 f"  - {label}: `{paths['original']}` -> `{paths['compressed']}`"

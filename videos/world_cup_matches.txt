@@ -64,9 +64,29 @@ egypt v iran
 new zealand v belgium
 cape verde v saudi arabia
 uruguay v spain
-panama_v_england
-croatia_v_ghana
-colombia_v_portugal
-dr_congo_v_uzbekistan
-jordan_v_argentina
-algeria_v_austria
+panama v england
+croatia v ghana
+colombia v portugal
+dr congo v uzbekistan
+jordan v argentina
+algeria v austria
+czech republic v korea republic
+south africa v canada
+brazil v japan
+germany v paraguay
+netherlands v morocco
+ivory coast v norway
+mexico v ecuador
+france v sweden
+canada v morocco
+paraguay v france
+brazil v norway
+mexico v england
+portugal v spain
+united states v belgium
+argentina v egypt
+switzerland v colombia
+france v morocco
+spain v belgium
+norway v england
+argentina v switzerland

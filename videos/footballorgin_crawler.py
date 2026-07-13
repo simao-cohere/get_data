@@ -76,9 +76,17 @@ def http_get_bytes(url: str, referer: str | None = None, timeout: int = 60) -> b
 
 
 def http_get_bytes_retry(
-    url: str, referer: str | None = None, timeout: int = 60, retries: int = 4
+    url: str, referer: str | None = None, timeout: int = 60, retries: int = 10
 ) -> bytes:
-    """Fetch raw bytes with retries for transient network errors."""
+    """Fetch raw bytes with retries for transient network errors.
+
+    The video CDN is frequently flaky (sporadic 502 Bad Gateway and truncated
+    reads), and a whole multi-thousand-segment download is aborted if a single
+    segment gives up, so we retry generously with capped exponential backoff
+    plus jitter to ride out transient outages.
+    """
+    import random
+
     last_exc: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
@@ -86,9 +94,9 @@ def http_get_bytes_retry(
         except Exception as exc:  # noqa: BLE001 (network errors vary widely)
             last_exc = exc
             if attempt < retries:
-                wait = min(2 ** attempt, 10)
+                wait = min(2 ** attempt, 20) + random.uniform(0, 1.5)
                 print(
-                    f"    segment fetch failed ({exc}); retry {attempt}/{retries - 1} in {wait}s",
+                    f"    segment fetch failed ({exc}); retry {attempt}/{retries - 1} in {wait:.1f}s",
                     file=sys.stderr,
                 )
                 time.sleep(wait)
@@ -165,16 +173,33 @@ def select_variant(
     return variants[0]
 
 
+_IFRAME_BLOCKLIST = (
+    "googletagmanager",
+    "doubleclick",
+    "google.com",
+    "gstatic",
+    "yandex",
+    "facebook",
+    "/ads",
+)
+
+
 def extract_embed_iframe(embed_html: str) -> str:
     """Find the third-party player iframe URL inside an embed page."""
-    # Primary host used by this site.
+    # Legacy host used by this site.
     m = re.search(r'https?://soccerfull\.net/play/\d+', embed_html)
     if m:
         return m.group(0)
-    # Fallback: first iframe that looks like a /play/ or /embed/ player.
     for m in re.finditer(r'<iframe[^>]+src="([^"]+)"', embed_html, re.IGNORECASE):
-        src = m.group(1)
-        if re.search(r"/(play|embed)/", src) and "googletagmanager" not in src:
+        src = m.group(1).replace("&#038;", "&").replace("&amp;", "&")
+        if any(b in src for b in _IFRAME_BLOCKLIST):
+            continue
+        # Classic /play/ or /embed/ players.
+        if re.search(r"/(play|embed)/", src):
+            return src
+        # Newer embedseek-style single-page players that carry the video id in a
+        # URL fragment, e.g. https://matchedcap.embedseek.online/#ivyyh
+        if "embedseek" in src or re.search(r"https?://[^/]+/#\w+", src):
             return src
     raise RuntimeError("Could not find a player iframe in the embed page.")
 
@@ -190,12 +215,54 @@ def extract_m3u8(player_html: str, player_url: str) -> str:
     return urllib.parse.urljoin(player_url, m.group(1))
 
 
+# embedseek.online single-page players return AES-128-CBC encrypted JSON from
+# their /api/v1/video endpoint. The key/IV are derived client-side purely from
+# constants (location.protocol == "https:") so they are static for this deploy.
+_EMBEDSEEK_KEY = b"kiemtienmua911ca"
+_EMBEDSEEK_IV = b"1234567890oiuytr"
+
+
+def _embedseek_decrypt(hex_text: str) -> str:
+    from Crypto.Cipher import AES  # optional dependency, only for this host
+
+    ciphertext = bytes.fromhex(hex_text.strip())
+    plaintext = AES.new(_EMBEDSEEK_KEY, AES.MODE_CBC, _EMBEDSEEK_IV).decrypt(ciphertext)
+    pad = plaintext[-1] if plaintext else 0
+    if 1 <= pad <= 16:
+        plaintext = plaintext[:-pad]
+    return plaintext.decode("utf-8", "replace")
+
+
+def is_embedseek_player(player_url: str) -> bool:
+    parsed = urllib.parse.urlparse(player_url)
+    return "embedseek" in parsed.netloc or bool(parsed.fragment)
+
+
+def resolve_embedseek_m3u8(player_url: str) -> tuple[str, str]:
+    """Return (m3u8_url, referer_origin) for an embedseek-style player URL."""
+    import json as _json
+
+    parsed = urllib.parse.urlparse(player_url)
+    video_id = parsed.fragment or urllib.parse.parse_qs(parsed.query).get("id", [""])[0]
+    if not video_id:
+        raise RuntimeError("embedseek: no video id found in player URL")
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    api = f"{origin}/api/v1/video?id={urllib.parse.quote(video_id)}"
+    raw = http_get(api, referer=origin + "/")
+    data = _json.loads(_embedseek_decrypt(raw))
+    src = data.get("source") or data.get("cfNative")
+    if not src:
+        raise RuntimeError("embedseek: no stream source in decrypted payload")
+    return src, origin + "/"
+
+
 @dataclass
 class Resolved:
     variant: Variant
     embed_url: str
     player_url: str
     m3u8_url: str
+    referer: str = ""
 
 
 def resolve(post_url: str, variant: str | None, index: int | None) -> tuple[list[Variant], Resolved]:
@@ -212,14 +279,19 @@ def resolve(post_url: str, variant: str | None, index: int | None) -> tuple[list
     embed_html = http_get(embed_url, referer=post_url)
     player_url = extract_embed_iframe(embed_html)
 
-    player_html = http_get(player_url, referer=post_url)
-    m3u8_url = extract_m3u8(player_html, player_url)
+    if is_embedseek_player(player_url):
+        m3u8_url, referer = resolve_embedseek_m3u8(player_url)
+    else:
+        player_html = http_get(player_url, referer=post_url)
+        m3u8_url = extract_m3u8(player_html, player_url)
+        referer = player_url
 
     return variants, Resolved(
         variant=chosen,
         embed_url=embed_url,
         player_url=player_url,
         m3u8_url=m3u8_url,
+        referer=referer,
     )
 
 
@@ -228,11 +300,14 @@ def slugify(text: str) -> str:
     return re.sub(r"[\s_-]+", "-", text) or "video"
 
 
-def parse_media_playlist(m3u8_text: str, m3u8_url: str, referer: str) -> list[str]:
-    """Return the absolute segment URLs from an HLS playlist.
+def parse_media_playlist(
+    m3u8_text: str, m3u8_url: str, referer: str
+) -> tuple[list[str], str | None]:
+    """Return ``(segment_urls, init_segment_url)`` for an HLS playlist.
 
     Handles both master playlists (picks the first variant stream and recurses)
-    and plain media playlists.
+    and plain media playlists. ``init_segment_url`` is the fragmented-MP4
+    initialisation segment from ``#EXT-X-MAP`` (``None`` for MPEG-TS streams).
     """
     lines = [ln.strip() for ln in m3u8_text.splitlines() if ln.strip()]
 
@@ -245,6 +320,13 @@ def parse_media_playlist(m3u8_text: str, m3u8_url: str, referer: str) -> list[st
                 return parse_media_playlist(sub, variant_url, referer)
         raise RuntimeError("Master playlist had no usable variant stream.")
 
+    init_url: str | None = None
+    for ln in lines:
+        if ln.startswith("#EXT-X-MAP"):
+            m = re.search(r'URI="([^"]+)"', ln)
+            if m:
+                init_url = urllib.parse.urljoin(m3u8_url, m.group(1))
+
     segments = [
         urllib.parse.urljoin(m3u8_url, ln)
         for ln in lines
@@ -252,7 +334,7 @@ def parse_media_playlist(m3u8_text: str, m3u8_url: str, referer: str) -> list[st
     ]
     if not segments:
         raise RuntimeError("No media segments found in the playlist.")
-    return segments
+    return segments, init_url
 
 
 def strip_segment_wrapper(data: bytes) -> bytes:
@@ -322,27 +404,39 @@ def download_hls(
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
 
     playlist = http_get(m3u8_url, referer=referer)
-    segments = parse_media_playlist(playlist, m3u8_url, referer)
+    segments, init_url = parse_media_playlist(playlist, m3u8_url, referer)
     total = len(segments)
-    print(f"Downloading {total} segments...", file=sys.stderr)
+    # Fragmented-MP4 streams carry an #EXT-X-MAP init segment and must not have
+    # the MPEG-TS "PNG wrapper" stripping applied to them.
+    is_fmp4 = init_url is not None
+    print(
+        f"Downloading {total} segments ({'fMP4' if is_fmp4 else 'MPEG-TS'})...",
+        file=sys.stderr,
+    )
 
-    fd, ts_path = tempfile.mkstemp(suffix=".ts")
+    fd, ts_path = tempfile.mkstemp(suffix=".mp4" if is_fmp4 else ".ts")
     os.close(fd)
     try:
         with open(ts_path, "wb") as tmp:
+            if init_url:
+                tmp.write(http_get_bytes_retry(init_url, referer=referer))
             for idx, seg_url in enumerate(segments, 1):
-                data = strip_segment_wrapper(http_get_bytes_retry(seg_url, referer=referer))
+                raw = http_get_bytes_retry(seg_url, referer=referer)
+                data = raw if is_fmp4 else strip_segment_wrapper(raw)
                 tmp.write(data)
                 if idx % 10 == 0 or idx == total:
                     print(f"  {idx}/{total} segments", file=sys.stderr)
 
+        # aac_adtstoasc converts ADTS (MPEG-TS) AAC to the MP4 ASC form; it must
+        # not be applied to already-fMP4 audio.
+        audio_bsf = [] if is_fmp4 else ["-bsf:a", "aac_adtstoasc"]
         if height and two_pass:
             # Pass 1: write the full-res original (stream copy).
             base, ext = os.path.splitext(out_path)
             original_path = f"{base}.fullres{ext or '.mp4'}"
             copy_cmd = [
                 "ffmpeg", "-y", "-i", ts_path,
-                "-c", "copy", "-bsf:a", "aac_adtstoasc",
+                "-c", "copy", *audio_bsf,
                 "-movflags", "+faststart", original_path,
             ]
             print("Pass 1/2 - remuxing full-res:", " ".join(copy_cmd), file=sys.stderr)
@@ -362,7 +456,7 @@ def download_hls(
         else:
             cmd = [
                 "ffmpeg", "-y", "-i", ts_path,
-                "-c", "copy", "-bsf:a", "aac_adtstoasc",
+                "-c", "copy", *audio_bsf,
                 "-movflags", "+faststart", out_path,
             ]
             print("Remuxing (stream copy):", " ".join(cmd), file=sys.stderr)
