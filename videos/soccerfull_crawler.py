@@ -52,6 +52,12 @@ BASE = "https://soccerfull.net"
 CATEGORY = f"{BASE}/cate/world-cup-2026"
 MAX_CATEGORY_PAGES = 12
 
+# See footballorgin_crawler.DEFAULT_OUT_DIR: manual CLI downloads default to
+# the large data volume, not a relative "downloads/" folder under the repo.
+DEFAULT_OUT_DIR = os.environ.get(
+    "DOWNLOADS_OUT_DIR", "/data/1d/simao/football_downloads/manual_downloads"
+)
+
 # Reuse the footballorgin Variant dataclass (index/label/page_url). For soccerfull
 # ``index`` holds the sid (== play id) and ``page_url`` is the /play/<sid> URL.
 Variant = fc.Variant
@@ -245,7 +251,11 @@ def main() -> int:
     parser.add_argument("--list", action="store_true", help="List available variants and exit.")
     parser.add_argument("--resolve-only", action="store_true", help="Print the .m3u8 URL without downloading.")
     parser.add_argument("-o", "--output", help="Output .mp4 path.")
-    parser.add_argument("--out-dir", default="downloads", help="Directory for downloads (default: downloads).")
+    parser.add_argument(
+        "--out-dir",
+        default=DEFAULT_OUT_DIR,
+        help=f"Directory for downloads (default: {DEFAULT_OUT_DIR}; override with DOWNLOADS_OUT_DIR env var).",
+    )
     parser.add_argument("--height", type=int, help="Downscale to this video height in one re-encode pass.")
     parser.add_argument("--crf", type=int, default=23, help="x264 CRF quality when --height is used (default 23).")
     args = parser.parse_args()

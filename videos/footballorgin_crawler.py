@@ -57,6 +57,16 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 )
 
+# Manual/CLI downloads (as opposed to the batch script, which always passes an
+# explicit --out-dir under the large DOWNLOADS volume) default here. Override
+# via DOWNLOADS_OUT_DIR or --out-dir if you want a different location. This is
+# intentionally NOT a relative "downloads/" folder, since running the CLI from
+# a repo checkout could otherwise silently fill up a small repo-hosting volume
+# with multi-GB video files.
+DEFAULT_OUT_DIR = os.environ.get(
+    "DOWNLOADS_OUT_DIR", "/data/1d/simao/football_downloads/manual_downloads"
+)
+
 
 def http_get(url: str, referer: str | None = None, timeout: int = 60) -> str:
     """Fetch a URL and return the decoded body (with retries)."""
@@ -485,7 +495,11 @@ def main() -> int:
     parser.add_argument("--list", action="store_true", help="List available variants and exit.")
     parser.add_argument("--resolve-only", action="store_true", help="Resolve and print the .m3u8 URL without downloading.")
     parser.add_argument("-o", "--output", help="Output .mp4 path (default derived from variant label).")
-    parser.add_argument("--out-dir", default="downloads", help="Directory for downloads (default: downloads).")
+    parser.add_argument(
+        "--out-dir",
+        default=DEFAULT_OUT_DIR,
+        help=f"Directory for downloads (default: {DEFAULT_OUT_DIR}; override with DOWNLOADS_OUT_DIR env var).",
+    )
     parser.add_argument(
         "--height",
         type=int,

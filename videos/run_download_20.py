@@ -56,6 +56,9 @@ LOGFILE = os.path.join(LOGDIR, "run.log")
 TARGET_SUCCESSES = int(os.environ.get("TARGET_SUCCESSES", "20"))
 MAX_WORKERS = int(os.environ.get("MAX_WORKERS", "6"))
 MIN_FREE_GB = float(os.environ.get("MIN_FREE_GB", "15"))
+# ROOT (the repo checkout) is usually a much smaller/shared volume than
+# DOWNLOADS, so it's given its own, independently tunable threshold.
+MIN_FREE_GB_ROOT = float(os.environ.get("MIN_FREE_GB_ROOT", "15"))
 COMPRESS_PRESET = os.environ.get("COMPRESS_PRESET", "veryfast")
 CATEGORY = "https://www.footballorgin.com/international-games/fifa-world-cup-2026/"
 MAX_CATEGORY_PAGES = 12
@@ -77,6 +80,7 @@ TEAM_ALIAS = {
 # the scraped URL index.
 MANUAL_URLS = {
     "norway v england": "https://www.footballorgin.com/norway-v-england-full-match-11-july-2026/",
+    "ecuador v curaçao": "https://www.footballorgin.com/ecuador-vs-curacao-full-match-20-june-2026/",
 }
 
 START_TS = time.time()
@@ -279,7 +283,10 @@ def human(n: int) -> str:
 def classify_variant(label: str) -> str:
     """Bucket a variant label into a canonical kind."""
     l = label.lower()
-    if "extra" in l or "penalt" in l:
+    # "extra"/"penalt" cover footballorgin's "Extra time and penalties ..."; the
+    # soccerfull labels are terser ("ET & Pen (If Any)") so also match a bare
+    # "pen" and a whole-word "et".
+    if "extra" in l or "penalt" in l or "pen" in l or re.search(r"\bet\b", l):
         return "extra_time"
     if "1st" in l or "first" in l:
         return "first_half"
@@ -318,17 +325,62 @@ def choose_variants(variants):
     return chosen
 
 
-def _fetch_variants(slug, outdir, compdir, variants, resolver, detail):
+def _drop_variant_files(slug, outdir, compdir, detail, kind):
+    """Delete already-fetched files for a variant ``kind`` and scrub ``detail``.
+
+    Enforces the halves-over-full-match rule when a redundant variant slipped
+    through -- e.g. footballorgin supplied a full match before we learned
+    soccerfull also had both split halves.
+    """
+    removed = []
+    for d in (outdir, compdir):
+        try:
+            entries = os.listdir(d)
+        except FileNotFoundError:
+            continue
+        for fn in entries:
+            if classify_variant(fn) == kind:
+                p = os.path.join(d, fn)
+                try:
+                    os.remove(p)
+                    removed.append(os.path.basename(p))
+                except OSError:
+                    pass
+    for lbl in [l for l in detail["variants"] if classify_variant(l) == kind]:
+        detail["variants"].pop(lbl, None)
+    detail["originals"] = [
+        p for p in detail["originals"]
+        if classify_variant(os.path.basename(p)) != kind
+    ]
+    detail["compressed"] = [
+        p for p in detail["compressed"]
+        if classify_variant(os.path.basename(p)) != kind
+    ]
+    if removed:
+        log(f"  {slug}: dropped redundant {kind} ({', '.join(removed)})")
+
+
+def _fetch_variants(slug, outdir, compdir, variants, resolver, detail, skip_kinds=None):
     """Download + compress ``variants`` using ``resolver``.
 
     ``resolver(variant)`` returns ``(m3u8_url, referer)`` or raises. Files are
     keyed by variant stem, so a variant already downloaded by a previous source
     (e.g. footballorgin before falling back to soccerfull) is detected via
-    ``probe_ok`` and not fetched again. Returns the set of variant kinds that
-    are available (downloaded + compressed OK).
+    ``probe_ok`` and not fetched again. ``skip_kinds`` lets a complementary
+    source (soccerfull) skip variant kinds already obtained from footballorgin
+    even when the two sources label them differently (e.g. "Extra time and
+    penalties if any" vs "ET & Pen (If Any)"), so we backfill only what is
+    missing instead of re-downloading the same content under a new name.
+    Returns the set of variant kinds that are available (downloaded +
+    compressed OK).
     """
+    skip_kinds = skip_kinds or set()
     got = set()
     for v in variants:
+        kind = classify_variant(v.label)
+        if kind != "other" and kind in skip_kinds:
+            log(f"  {slug} [{v.index}] {v.label}: kind '{kind}' already obtained -> skip")
+            continue
         stem = variant_stem(v.label)
         orig = os.path.join(outdir, f"{stem}.mp4")
         comp = os.path.join(compdir, f"{stem}_480p30_h265.mp4")
@@ -388,7 +440,7 @@ def _fetch_variants(slug, outdir, compdir, variants, resolver, detail):
             "original": os.path.relpath(orig, ROOT),
             "compressed": os.path.relpath(comp, ROOT),
         }
-        got.add(classify_variant(v.label))
+        got.add(kind)
     return got
 
 
@@ -421,6 +473,22 @@ def process_match(name: str, fo_url: str | None, sf_url: str | None = None):
     }
 
     got: set[str] = set()
+    fo_target_kinds: set[str] = set()
+
+    # Peek soccerfull's variant list up front (cheap: one HTML GET, no m3u8
+    # resolution) so we can honour the "halves beat full match" rule across
+    # sources: if soccerfull can supply both halves, we must not spend time
+    # downloading footballorgin's full-match-only post.
+    sf_variants = None
+    sf_has_halves = False
+    if sf_url:
+        try:
+            sf_variants = sf.resolve(sf_url)
+            sf_kinds = {classify_variant(v.label) for v in sf_variants}
+            sf_has_halves = "first_half" in sf_kinds and "second_half" in sf_kinds
+        except Exception as exc:  # noqa: BLE001
+            log(f"  {slug}: soccerfull peek failed ({exc})")
+            sf_variants = None
 
     # --- primary source: footballorgin.com ---
     if fo_url:
@@ -432,29 +500,57 @@ def process_match(name: str, fo_url: str | None, sf_url: str | None = None):
             log(f"  {slug}: ERROR fetching footballorgin post page: {exc}")
             fo_variants = []
         if fo_variants:
+            fo_chosen = choose_variants(fo_variants)
+            # Cross-source rule: prefer soccerfull's split halves over a
+            # footballorgin full match. Drop the full-match variant when the
+            # halves are obtainable from soccerfull.
+            if sf_has_halves and any(
+                classify_variant(v.label) == "full_match" for v in fo_chosen
+            ):
+                log(f"  {slug}: skipping footballorgin full match (soccerfull has both halves)")
+                fo_chosen = [
+                    v for v in fo_chosen if classify_variant(v.label) != "full_match"
+                ]
+            fo_target_kinds = {classify_variant(v.label) for v in fo_chosen}
+
             def fo_resolver(v):
                 _, res = fc.resolve(fo_url, None, v.index)
                 return res.m3u8_url, (res.referer or res.player_url)
 
             got |= _fetch_variants(
-                slug, outdir, compdir, choose_variants(fo_variants), fo_resolver, detail
+                slug, outdir, compdir, fo_chosen, fo_resolver, detail
             )
         else:
             log(f"  {slug}: no footballorgin variants found")
 
     # --- fallback / complement: soccerfull.net (the origin host) ---
-    have_halves = "first_half" in got and "second_half" in got
-    if sf_url and not have_halves:
-        log(f"  {slug}: soccerfull fallback {sf_url}")
+    # Run soccerfull whenever footballorgin produced nothing, failed any variant
+    # kind it advertised, or we still lack the extra-time video (these are all
+    # knockout fixtures that should carry an "ET & Pen (If Any)" variant).
+    # _fetch_variants skips kinds already obtained, so this only backfills the
+    # missing variants (e.g. an extra-time link footballorgin couldn't resolve)
+    # without re-downloading the good ones.
+    missing_fo = fo_target_kinds - got
+    need_sf = bool(sf_url) and (not got or bool(missing_fo) or "extra_time" not in got)
+    if need_sf and sf_variants is None:
         try:
             sf_variants = sf.resolve(sf_url)
         except Exception as exc:  # noqa: BLE001
             log(f"  {slug}: soccerfull fetch error: {exc}")
             sf_variants = []
-        if sf_variants:
-            got |= _fetch_variants(
-                slug, outdir, compdir, choose_variants(sf_variants), sf.resolve_variant, detail
-            )
+    if need_sf and sf_variants:
+        log(f"  {slug}: soccerfull complement {sf_url} (have={sorted(got)}, missing={sorted(missing_fo)})")
+        got |= _fetch_variants(
+            slug, outdir, compdir, choose_variants(sf_variants),
+            sf.resolve_variant, detail, skip_kinds=got,
+        )
+
+    # Safety net: if we still ended up with both halves and a full match
+    # (e.g. footballorgin delivered the full match before we knew soccerfull
+    # had the halves), drop the redundant full-match copy.
+    if {"first_half", "second_half"} <= got and "full_match" in got:
+        _drop_variant_files(slug, outdir, compdir, detail, "full_match")
+        got.discard("full_match")
 
     if got:
         detail["status"] = "success"
@@ -476,6 +572,14 @@ def main() -> int:
 
     progress = load_progress()
     completed = set(progress["completed"])
+    # FORCE_RETRY: comma-separated match names to re-attempt even if already
+    # completed. process_match skips variants whose files already exist, so this
+    # only backfills missing/failed variants (e.g. an "Extra time" link that
+    # failed on the first pass) without re-downloading the good ones.
+    force_retry = {n.strip() for n in os.environ.get("FORCE_RETRY", "").split(",") if n.strip()}
+    if force_retry:
+        completed -= force_retry
+        log(f"Force-retrying (ignoring completed status): {sorted(force_retry)}")
     log(f"Already completed: {sorted(completed)}")
 
     ordered, by_set = build_url_index()
@@ -520,8 +624,8 @@ def main() -> int:
 
     import shutil
 
-    def free_gb() -> float:
-        return shutil.disk_usage(ROOT).free / 1e9
+    def free_gb(path: str) -> float:
+        return shutil.disk_usage(path).free / 1e9
 
     new_success = 0
     ci = 0
@@ -529,9 +633,26 @@ def main() -> int:
     inflight: dict = {}
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as ex:
         while new_success < TARGET_SUCCESSES and (inflight or ci < len(candidates)):
-            if not stop_disk and free_gb() < MIN_FREE_GB:
-                stop_disk = True
-                log(f"!! low disk ({free_gb():.0f}GB < {MIN_FREE_GB}GB) -> stop starting new matches")
+            if not stop_disk:
+                # ROOT (the repo checkout, holding logs/progress.json) is the
+                # volume we're most worried about filling by mistake -- it's
+                # small/shared and unrelated activity elsewhere on the host can
+                # eat into it. DOWNLOADS (the actual video destination) is
+                # checked too, since a run should also stop if that fills up.
+                root_free = free_gb(ROOT)
+                dl_free = free_gb(DOWNLOADS)
+                if root_free < MIN_FREE_GB_ROOT:
+                    stop_disk = True
+                    log(
+                        f"!! low disk on repo volume ROOT={ROOT} "
+                        f"({root_free:.0f}GB < {MIN_FREE_GB_ROOT}GB) -> stop starting new matches"
+                    )
+                elif dl_free < MIN_FREE_GB:
+                    stop_disk = True
+                    log(
+                        f"!! low disk on downloads volume DOWNLOADS={DOWNLOADS} "
+                        f"({dl_free:.0f}GB < {MIN_FREE_GB}GB) -> stop starting new matches"
+                    )
             while (
                 not stop_disk
                 and ci < len(candidates)

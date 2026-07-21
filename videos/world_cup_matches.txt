@@ -1,32 +1,44 @@
+france v senegal
+england v croatia
+qatar v switzerland
+ghana v panama
+portugal v dr congo
 mexico v south africa
 korea republic v czech republic
+uzbekistan v colombia
+austria v jordan
+iraq v norway
+spain v cape verde
+saudi arabia v uruguay
+iran v new zealand
 canada v bosnia and herzegovina
-united states v paraguay
-haiti v scotland
-australia v turkey
+belgium v egypt
 brazil v morocco
-qatar v switzerland
-ivory coast v ecuador
+haiti v scotland
+argentina v algeria
+united states v paraguay
+australia v turkey
 germany v curaçao
+ivory coast v ecuador
 netherlands v japan
 sweden v tunisia
-saudi arabia v uruguay
-spain v cape verde
-iran v new zealand
-belgium v egypt
-france v senegal
-iraq v norway
-argentina v algeria
-austria v jordan
-ghana v panama
-england v croatia
-portugal v dr congo
-uzbekistan v colombia
-czech republic v south africa
-switzerland v bosnia and herzegovina
-canada v qatar
 mexico v korea republic
+belgium v iran
+argentina v austria
+panama v croatia
+england v ghana
+colombia v dr congo
+czech republic v south africa
+jordan v algeria
+france v iraq
+norway v senegal
+canada v qatar
+uruguay v cape verde
+switzerland v bosnia and herzegovina
+new zealand v egypt
+spain v saudi arabia
 brazil v haiti
+portugal v uzbekistan
 scotland v morocco
 united states v australia
 turkey v paraguay
@@ -34,59 +46,59 @@ germany v ivory coast
 ecuador v curaçao
 netherlands v sweden
 tunisia v japan
-uruguay v cape verde
-spain v saudi arabia
-belgium v iran
-new zealand v egypt
-norway v senegal
-france v iraq
-argentina v austria
-jordan v algeria
-england v ghana
-panama v croatia
-portugal v uzbekistan
-colombia v dr congo
-scotland v brazil
-morocco v haiti
-switzerland v canada
-bosnia and herzegovina v qatar
-czech republic v mexico
-south africa v korea republic
-curaçao v ivory coast
-ecuador v germany
-japan v sweden
-tunisia v netherlands
-turkey v united states
-paraguay v australia
 norway v france
-senegal v iraq
-egypt v iran
-new zealand v belgium
-cape verde v saudi arabia
-uruguay v spain
-panama v england
 croatia v ghana
+panama v england
 colombia v portugal
 dr congo v uzbekistan
+czech republic v mexico
 jordan v argentina
+south africa v korea republic
 algeria v austria
-czech republic v korea republic
-south africa v canada
-brazil v japan
-germany v paraguay
-netherlands v morocco
+senegal v iraq
+cape verde v saudi arabia
+switzerland v canada
+new zealand v belgium
+egypt v iran
+bosnia and herzegovina v qatar
+uruguay v spain
+scotland v brazil
+morocco v haiti
+turkey v united states
+paraguay v australia
+ecuador v germany
+curaçao v ivory coast
+japan v sweden
+tunisia v netherlands
 ivory coast v norway
-mexico v ecuador
+united states v bosnia and herzegovina
 france v sweden
-canada v morocco
-paraguay v france
+portugal v croatia
+netherlands v morocco
+argentina v cape verde
+south africa v canada
+mexico v ecuador
+spain v austria
+colombia v ghana
+brazil v japan
+belgium v senegal
+germany v paraguay
+australia v egypt
+algeria v switzerland
+england v dr congo
+portugal v spain
+switzerland v colombia
+argentina v egypt
+united states v belgium
 brazil v norway
 mexico v england
-portugal v spain
-united states v belgium
-argentina v egypt
-switzerland v colombia
-france v morocco
+canada v morocco
+paraguay v france
 spain v belgium
-norway v england
 argentina v switzerland
+france v morocco
+norway v england
+france v spain
+england_v_argentina
+france_v_england
+spain_v_argentina
